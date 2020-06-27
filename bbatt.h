@@ -25,8 +25,8 @@
 int att_connect(bdaddr_t *dst, int sec);
 
 int att_read(int fd, uint16_t handle, void *buf, int len);
-int att_write(int fd, uint16_t handle, const void *buf, int length);
-int att_wrreq(int fd, uint16_t handle, const void *buf, int length);
+int att_write(int fd, uint16_t handle, const void *buf, uint32_t length);
+int att_wrreq(int fd, uint16_t handle, const void *buf, uint32_t length);
 int att_read_not(int fd, uint16_t *handle, void *buf, int len);
 
 const char *addr_type_name(int dst_type);

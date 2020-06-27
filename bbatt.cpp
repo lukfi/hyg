@@ -56,7 +56,8 @@ int att_connect(bdaddr_t *dst, int sec)
     srcaddr.l2_family = AF_BLUETOOTH;
     srcaddr.l2_cid = htobs(ATT_CID);
     srcaddr.l2_bdaddr_type = 0;
-    bacpy(&srcaddr.l2_bdaddr, BDADDR_ANY);
+    bdaddr_t addrAny {};
+    bacpy(&srcaddr.l2_bdaddr, &addrAny);
 
     if (bind(sock, (struct sockaddr *)&srcaddr, sizeof(srcaddr)) < 0) {
         fprintf(stderr, "Failed to bind L2CAP socket\n");
@@ -103,7 +104,7 @@ int att_read(int fd, uint16_t handle, void *buf, int len)
     if (result<0)
         return result;
     else if (rpkt.opcode == BT_ATT_OP_ERROR_RSP && result==1+sizeof(struct bt_att_pdu_error_rsp)) {
-        struct bt_att_pdu_error_rsp *err = (void *)rpkt.buf;
+        struct bt_att_pdu_error_rsp *err = reinterpret_cast<bt_att_pdu_error_rsp*>(rpkt.buf);
         debug_print("ATT error for opcode 0x%02x, handle 0x%04x: %s\n", err->opcode, btohs(err->handle), att_ecode2str(err->ecode));
         return -2;
     } else if (rpkt.opcode != BT_ATT_OP_READ_RSP) {
@@ -119,43 +120,49 @@ int att_read(int fd, uint16_t handle, void *buf, int len)
     }
 }
 
-int att_write(int fd, uint16_t handle, const void *buf, int length)
+int att_write(int fd, uint16_t handle, const void *buf, uint32_t length)
 {
-    struct { uint8_t opcode; uint16_t handle; uint8_t buf[length]; } __attribute__((packed)) pkt;
+    const uint32_t maxLength = BT_ATT_DEFAULT_LE_MTU - sizeof(uint8_t) - sizeof(uint16_t);
+    if (length > maxLength)
+        return -1;
+
+    struct { uint8_t opcode; uint16_t handle; uint8_t buf[maxLength]; } __attribute__((packed)) pkt;
+    uint32_t size = sizeof(pkt) - sizeof(pkt.buf) + length;
     pkt.opcode = BT_ATT_OP_WRITE_CMD;
     pkt.handle = htobs(handle);
 
-    if (sizeof pkt > BT_ATT_DEFAULT_LE_MTU)
-        return -1;
     memcpy(pkt.buf, buf, length);
 
-    int result = send(fd, &pkt, sizeof(pkt), 0);
+    int result = send(fd, &pkt, size, 0);
     if (result<0)
         return result;
 
     return length;
 }
 
-int att_wrreq(int fd, uint16_t handle, const void *buf, int length)
+int att_wrreq(int fd, uint16_t handle, const void *buf, uint32_t length)
 {
-    struct { uint8_t opcode; uint16_t handle; uint8_t buf[length]; } __attribute__((packed)) pkt;
+    const uint32_t maxLength = BT_ATT_DEFAULT_LE_MTU - sizeof(uint8_t) - sizeof(uint16_t);
+    if (length > maxLength)
+        return -1;
+
+    struct { uint8_t opcode; uint16_t handle; uint8_t buf[maxLength]; } __attribute__((packed)) pkt;
+    uint32_t size = sizeof(pkt) - sizeof(pkt.buf) + length;
     pkt.opcode = BT_ATT_OP_WRITE_REQ;
     pkt.handle = htobs(handle);
 
-    if (sizeof pkt > BT_ATT_DEFAULT_LE_MTU)
-        return -1;
     memcpy(pkt.buf, buf, length);
 
-    int result = send(fd, &pkt, sizeof(pkt), 0);
+    int result = send(fd, &pkt, size, 0);
     if (result<0)
         return result;
 
     struct { uint8_t opcode; uint8_t buf[BT_ATT_DEFAULT_LE_MTU]; } __attribute__((packed)) rpkt = {0};
-    result = recv(fd, &rpkt, sizeof rpkt, 0);
+    result = recv(fd, &rpkt, sizeof(rpkt), 0);
     if (result < 0)
         return result;
     else if (rpkt.opcode == BT_ATT_OP_ERROR_RSP && result==1+sizeof(struct bt_att_pdu_error_rsp)) {
-        struct bt_att_pdu_error_rsp *err = (void *)rpkt.buf;
+        struct bt_att_pdu_error_rsp *err = reinterpret_cast<bt_att_pdu_error_rsp*>(rpkt.buf);
         debug_print("ATT error for opcode 0x%02x, handle 0x%04x: %s\n", err->opcode, btohs(err->handle), att_ecode2str(err->ecode));
         return -2;
     } else if (rpkt.opcode != BT_ATT_OP_WRITE_RSP) {
@@ -169,12 +176,12 @@ int att_wrreq(int fd, uint16_t handle, const void *buf, int length)
 int att_read_not(int fd, uint16_t *handle, void *buf, int len)
 {
     struct { uint8_t opcode; uint16_t handle; uint8_t buf[BT_ATT_DEFAULT_LE_MTU]; } __attribute__((packed)) rpkt;
-    int result = recv(fd, &rpkt, sizeof rpkt, 0);
+    int result = recv(fd, &rpkt, sizeof(rpkt), 0);
 
     if (result<0)
         return result;
     else if (rpkt.opcode == BT_ATT_OP_ERROR_RSP && result==1+sizeof(struct bt_att_pdu_error_rsp)) {
-        struct bt_att_pdu_error_rsp *err = (void *)rpkt.buf;
+        struct bt_att_pdu_error_rsp *err = reinterpret_cast<bt_att_pdu_error_rsp*>(rpkt.buf);
         debug_print("ATT error for opcode 0x%02x, handle 0x%04x: %s\n", err->opcode, btohs(err->handle), att_ecode2str(err->ecode));
         return -2;
     } else if (rpkt.opcode != BT_ATT_OP_HANDLE_VAL_NOT) {

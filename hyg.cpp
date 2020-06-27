@@ -64,7 +64,7 @@ int read_notification(int fd, int cccd_handle, int data_handle, uint8_t *buf, in
 	uint8_t val[2] = {0x01, 0x00};
 	int ret = att_wrreq(fd, cccd_handle, val, sizeof(val));
 	if (ret < 0) {
-		fprintf(stderr, "Could not enable notifications\n");
+                fprintf(stderr, "Could not enable notifications: %d\n", ret);
 		return -1;
 	}
 
@@ -83,6 +83,7 @@ int read_notification(int fd, int cccd_handle, int data_handle, uint8_t *buf, in
 
 bool lywsd_read_data(int fd, enum sensor_type type) {
 	uint8_t buf[32];
+        const char* constBuf = reinterpret_cast<const char*>(buf);
 	int ret = read_notification(fd, lywsd_configs[type].cccd_handle,
 		lywsd_configs[type].data_handle, buf, sizeof(buf));
 
@@ -92,7 +93,7 @@ bool lywsd_read_data(int fd, enum sensor_type type) {
 	switch (type) {
 	case HYG_LYWSDCGQ:
 		buf[sizeof(buf)-1] = '\0';
-		if (sscanf(buf, "T=%f H=%f", &t, &h) != 2) {
+                if (sscanf(constBuf, "T=%f H=%f", &t, &h) != 2) {
 			fprintf(stderr, "Malformed response\n");
 			return 1;
 		}
@@ -137,7 +138,7 @@ bool lywsd_set_time(int fd, enum sensor_type type) {
 	}
 	return true;
 }
-
+#ifndef IGNORE_HYG_MAIN
 int main(int argc, char **argv) {
 	enum sensor_type type = HYG_LYWSDCGQ;
 	int opt;
@@ -191,3 +192,4 @@ int main(int argc, char **argv) {
 
 	return ret?0:1;
 }
+#endif
