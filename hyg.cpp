@@ -30,6 +30,8 @@
 #include "bbatt.h"
 #include "hwaddr.h"
 
+#include "sensor.h"
+
 enum sensor_type {
 	HYG_LYWSDCGQ,
 	HYG_LYWSD02,		// fw pre 1.1.2_0042
@@ -81,36 +83,39 @@ int read_notification(int fd, int cccd_handle, int data_handle, uint8_t *buf, in
 	return ret;
 }
 
-bool lywsd_read_data(int fd, enum sensor_type type) {
-	uint8_t buf[32];
-        const char* constBuf = reinterpret_cast<const char*>(buf);
-	int ret = read_notification(fd, lywsd_configs[type].cccd_handle,
-		lywsd_configs[type].data_handle, buf, sizeof(buf));
+bool lywsd_read_data(int fd, enum sensor_type type, SensorValues& sensorVals)
+{
+    uint8_t buf[32];
+    const char* constBuf = reinterpret_cast<const char*>(buf);
+    int ret = read_notification(fd, lywsd_configs[type].cccd_handle,
+                                lywsd_configs[type].data_handle, buf, sizeof(buf));
 
-	if (ret < 0) return false;
+    if (ret < 0) return false;
 
-	float t=0, h=0;
-	switch (type) {
-	case HYG_LYWSDCGQ:
-		buf[sizeof(buf)-1] = '\0';
+    float t=0, h=0;
+    switch (type) {
+        case HYG_LYWSDCGQ:
+                buf[sizeof(buf)-1] = '\0';
                 if (sscanf(constBuf, "T=%f H=%f", &t, &h) != 2) {
-			fprintf(stderr, "Malformed response\n");
-			return 1;
-		}
-		break;
-	case HYG_LYWSD02:
-	case HYG_LYWSD02_0042:
-		if (ret != 3) {
-			fprintf(stderr, "Malformed response\n");
-			return false;
-		}
-		t = (buf[0] + buf[1]*256.0)/100.0;
-		h = buf[2];
-	}
+                    fprintf(stderr, "Malformed response\n");
+                    return 1;
+                }
+                break;
+        case HYG_LYWSD02:
+        case HYG_LYWSD02_0042:
+            if (ret != 3) {
+                fprintf(stderr, "Malformed response\n");
+                return false;
+            }
+            t = (buf[0] + buf[1]*256.0)/100.0;
+            h = buf[2];
+    }
 
-	printf("temp.value %.1f\n", t);
-	printf("hum.value %.1f\n", h);
-	return true;
+    sensorVals.temp = t;
+    sensorVals.hum = h;
+    //printf("temp.value %.1f\n", t);
+    //printf("hum.value %.1f\n", h);
+    return true;
 }
 
 bool lywsd_set_time(int fd, enum sensor_type type) {
